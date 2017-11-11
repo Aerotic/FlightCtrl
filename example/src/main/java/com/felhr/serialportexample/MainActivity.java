@@ -190,10 +190,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                StartFlag=true;
+                MySchedule();
                sendButton.setText("Running!");
             }
         });
-        MySchedule();
         //MyTimer.schedule(PrintHeight,100,200);
         seekbarDuty.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             /*
