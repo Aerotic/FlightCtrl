@@ -36,11 +36,9 @@ public class MainActivity extends AppCompatActivity {
     private SensorManager sm;
     private Sensor ligthSensor;
     private StringBuffer sb;
-    private TextView tvValue;
+    private TextView tv=(TextView)findViewById(R.id.textView);
     private float[] gravity = new float[3];
-    float oldacc_x;
-    //public KalmanFilter k;
-    //TextView tv;
+
     /*
      * Notifications from UsbService will be received here.
      */
@@ -90,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mHandler = new MyHandler(this);
-        tv=(TextView) findViewById(R.id.textView);
+        //tv=(TextView) findViewById(R.id.textView);
         display = (TextView) findViewById(R.id.textView1);
         editText = (EditText) findViewById(R.id.editText1);
         Button sendButton = (Button) findViewById(R.id.buttonSend);
@@ -195,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
             switch (msg.what) {
                 case UsbService.MESSAGE_FROM_SERIAL_PORT:
                     String data = (String) msg.obj;
-                    mActivity.get().display.append(data);
+                    //mActivity.get().tv.append(data);
                     break;
                 case UsbService.CTS_CHANGE:
                     Toast.makeText(mActivity.get(), "CTS_CHANGE",Toast.LENGTH_LONG).show();
@@ -205,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case UsbService.SYNC_READ:
                     String buffer = (String) msg.obj;
-                    mActivity.get().display.append(buffer);
+                   // mActivity.get().tv.append(buffer);
                     break;
             }
         }
@@ -236,7 +234,7 @@ public class MainActivity extends AppCompatActivity {
             // sb.append("lux ----> " + lux);
             //sb.append("\n");
 
-            tv.setText(p+""+"\n");
+          //  tv.setText(p+""+"\n");
         }
 
     }

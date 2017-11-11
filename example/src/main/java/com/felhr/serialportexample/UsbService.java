@@ -21,6 +21,8 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.security.auth.callback.UnsupportedCallbackException;
+
 public class UsbService extends Service {
 
     public static final String ACTION_USB_READY = "com.felhr.connectivityservices.USB_READY";
@@ -58,13 +60,19 @@ public class UsbService extends Service {
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback() {
         @Override
         public void onReceivedData(byte[] arg0) {
-            try {
-                String data = new String(arg0, "UTF-8");
-                if (mHandler != null)
-                    mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, data).sendToTarget();
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
+//            try {
+//                String gezaizhelibuzhidaozhengshadebianliang=new String(arg0, "UTF-8");
+//                String data = new String(arg0);//new String(arg0, "UTF-8");
+//                byte[] tmp=data.getBytes();
+//                if (mHandler != null)
+//                    mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, tmp).sendToTarget();
+//            }catch (UnsupportedEncodingException e) {
+//                e.printStackTrace();
+//            }
+            String data = new String(arg0);//new String(arg0, "UTF-8");
+            byte[] tmp=data.getBytes();
+            if (mHandler != null)
+                mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, arg0).sendToTarget();
         }
     };
 
@@ -97,7 +105,7 @@ public class UsbService extends Service {
         @Override
         public void onReceive(Context arg0, Intent arg1) {
             if (arg1.getAction().equals(ACTION_USB_PERMISSION)) {
-                boolean granted = arg1.getExtras().getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED);
+                boolean granted = true;//arg1.getExtras().getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED);
                 if (granted) // User accepted our USB connection. Try to open the device as a serial port
                 {
                     Intent intent = new Intent(ACTION_USB_PERMISSION_GRANTED);
