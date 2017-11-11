@@ -279,7 +279,7 @@ public class MainActivity extends AppCompatActivity {
         AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
         sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
-
+    public void task_5hz(){}
     /*
      * This handler will be passed to UsbService. Data received from serial port is displayed through this handler
      */
