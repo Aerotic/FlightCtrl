@@ -32,45 +32,111 @@ import java.util.concurrent.RecursiveAction;
 
 public class MainActivity extends AppCompatActivity {
 
-    SensorManager mSensorManager;
-    Sensor mSensor;
-    float a,b,c;
-    static float p;
     private SensorManager sm;
     private Sensor GyroSensor,GravitySensor,PressureSensor,AccelerationSensor,OrientationSensor;
     private StringBuffer sb;
     private TextView tvValue;
-    public boolean flag;
+    //Start Flag:start transmission
+    boolean StartFlag;
+
     //Raw data from sensors
     public float[] gravity = new float[3];
     public float[] acceleration=new float[3];
     public float[] gyro=new float[3];
     public float[] orientation=new float[3];
     public float baro;
-    float oldacc_x;
-    public KalmanFilter k;
+
+    //Treatment of accelemeter
+    int filterBuffer=100;
+    public float [][] acc_ftmp=new float[3][filterBuffer];
+    public float [] acc_f=new float[3];
+    public void acc_filter(){
+        int cnt;
+        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
+        for(cnt=filterBuffer-1;cnt>0;cnt--){
+            acc_ftmp[0][cnt]=acc_ftmp[0][cnt-1];
+            acc_ftmp[1][cnt]=acc_ftmp[1][cnt-1];
+            acc_ftmp[2][cnt]=acc_ftmp[2][cnt-1];
+        }
+        acc_ftmp[0][0]=acc[0];
+        acc_ftmp[1][0]=acc[1];
+        acc_ftmp[2][0]=acc[2];
+        for(cnt=0;cnt<filterBuffer;cnt++){
+            tmpsumx+=acc_ftmp[0][cnt];
+            tmpsumy+=acc_ftmp[1][cnt];
+            tmpsumz+=acc_ftmp[2][cnt];
+        }
+        acc_f[0]=tmpsumx/filterBuffer;
+        acc_f[1]=tmpsumy/filterBuffer;
+        acc_f[2]=tmpsumz/filterBuffer;
+    }
+    //Treatment of gyrometer
+    public float [][] gyro_ftmp=new float[3][100];
+    public float [] gyro_f=new float[3];
+    public void gyro_filter(){
+        int cnt;
+        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
+        for(cnt=99;cnt>0;cnt--){
+            gyro_ftmp[0][cnt]=gyro_ftmp[0][cnt-1];
+            gyro_ftmp[1][cnt]=gyro_ftmp[1][cnt-1];
+            gyro_ftmp[2][cnt]=gyro_ftmp[2][cnt-1];
+        }
+        gyro_ftmp[0][0]=gyro[0];
+        gyro_ftmp[1][0]=gyro[1];
+        gyro_ftmp[2][0]=gyro[2];
+        for(cnt=0;cnt<100;cnt++){
+            tmpsumx+=gyro_ftmp[0][cnt];
+            tmpsumy+=gyro_ftmp[1][cnt];
+            tmpsumz+=gyro_ftmp[2][cnt];
+        }
+        gyro_f[0]=tmpsumx/100;
+        gyro_f[1]=tmpsumy/100;
+        gyro_f[2]=tmpsumz/100;
+    }
+    //Treatment of barometer
+    public Barometer height=new Barometer();
+    public double dHeight,OriginHeight;
+    public String stmpH;
+
+    //Transmission Buffer
+    public byte[] TxBuffer=new byte[32];
+
     public TextView textviewGyro,textviewAcceleration,textviewBaro,textviewDuty;
     public SeekBar seekbarDuty;
+    public Button sendButton;
     public float[] acc=new float[3];
-    public UsbDecode dbus;
-    public Timer MyTimer=new Timer();
 
-    public TimerTask SendSensorTask=new TimerTask() {
+
+    //Schedule
+    public Timer MyTimer=new Timer();
+    public TimerTask Task_1000Hz=new TimerTask() {
         @Override
         public void run() {
-            if (usbService != null){
-                UsartSendFloat();
-            }
+            gyro_filter();
+            acc_filter();
         }
     };
-    public TimerTask SendMotorSpeedTask=new TimerTask() {
+    public TimerTask Task_500Hz=new TimerTask() {
         @Override
         public void run() {
-            if (usbService != null){
-                //usbService.write();
-            }
+
         }
     };
+    public TimerTask Task_200Hz=new TimerTask() {
+        @Override
+        public void run() {
+            TxPrepare();
+            UsbSendIMU();
+        }
+    };
+    public TimerTask Task_100Hz=new TimerTask() {
+        @Override
+        public void run() {
+        }
+    };
+
+
+
     /*
      * Notifications from UsbService will be received here.
      */
@@ -112,32 +178,23 @@ public class MainActivity extends AppCompatActivity {
             usbService = null;
         }
     };
-    byte[] hextest=new byte[1];
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mHandler = new MyHandler(this);
-        TextView_Config();
-        Sensor_Config();
-        //Initiallization of send button
-        Button sendButton = (Button) findViewById(R.id.buttonSend);
-        //Initialization of seekbar
-        seekbarDuty=(SeekBar)findViewById(R.id.seekBarDuty);
 
-       // usbService.write("Initialization Successful".getBytes());
+        InitialonCreate();
+
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                if (usbService != null){
-
-                    MyTimer.schedule(SendSensorTask,0,5);
-                }
-
+               StartFlag=true;
+               sendButton.setText("Running!");
             }
         });
-       // seekbarDuty.setOnSeekBarChangeListener();
+        MySchedule();
+        //MyTimer.schedule(PrintHeight,100,200);
         seekbarDuty.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             /*
             * seekbar改变时的事件监听处理
@@ -211,17 +268,36 @@ public class MainActivity extends AppCompatActivity {
         registerReceiver(mUsbReceiver, filter);
     }
 
-    public void UsartSendFloat(){
-        //String stmp=acc[0]+"\n";
-        byte[] tmp=float2byte(baro);
-        byte[] test=new byte[4];
-        test[0]=(byte)0xaa;
-        test[1]=(byte)0xaa;
-        test[2]=0;
-        test[3]=0;
-        if (usbService!=null) usbService.write(tmp);
+    public void UsbSendIMU(){
+        if (usbService!=null)
+            usbService.write(TxBuffer);
+    }
+    public void TxPrepare(){
+        byte[] tmp;
+        tmp=float2byte(acc_f[0]);
+        tmp=ByteArraryMerge(tmp,float2byte(acc_f[1]));
+        tmp=ByteArraryMerge(tmp,float2byte(acc_f[2]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[0]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[1]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[2]));
+        TxBuffer=tmp;
+    }
+    public void test(){
+        byte[][] tmp=new byte[6][4];
+        int i,j,cnt=0;
+        for(i=0;i<6;i++) for (j=0;j<4;j++) tmp[i][j]=TxBuffer[cnt++];
+        float[] f=new float[6];
+        for (i=0;i<6;i++) f[i]= byte2float(tmp[i],0);
+        String stmp="\tacc\tx\ty\tz\n"+"\t"+f[0]+"\t"+f[1]+"\t"+f[2]+"\n"+
+                    "\tgyro\tx\ty\tz\n"+"\t"+f[3]+"\t"+f[4]+"\t"+f[5]+"\n";
+        System.out.println(stmp);
+    }
 
-
+    public byte[] ByteArraryMerge(byte[] a,byte[] b){
+        byte[] tmp=new byte[a.length+b.length];
+        System.arraycopy(a,0,tmp,0,a.length);
+        System.arraycopy(b,0,tmp,a.length,b.length);
+        return tmp;
     }
     public  byte[] float2byte(float f) {
 
@@ -250,6 +326,17 @@ public class MainActivity extends AppCompatActivity {
         return dest;
 
     }
+    public  float byte2float(byte[] b, int index) {
+        int l;
+        l = b[index + 0];
+        l &= 0xff;
+        l |= ((long) b[index + 1] << 8);
+        l &= 0xffff;
+        l |= ((long) b[index + 2] << 16);
+        l &= 0xffffff;
+        l |= ((long) b[index + 3] << 24);
+        return Float.intBitsToFloat(l);
+    }
     public void TextView_Config(){
         //Initialization of textview widgets
         textviewDuty=(TextView)findViewById(R.id.textViewDuty);
@@ -263,23 +350,39 @@ public class MainActivity extends AppCompatActivity {
         //获取SensorManager对象
         sm = (SensorManager) getSystemService(SENSOR_SERVICE);
         //获取Sensor对象
-        //Orientation
-        OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-        sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
-        //Pressure
-        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
-        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
+//        //Orientation
+//        OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+//       sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+//        //Pressure
+//        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
+//        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Gyroscope
         GyroSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         sm.registerListener(new MySensorListener(), GyroSensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Gravity
-        GravitySensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
-        sm.registerListener(new MySensorListener(), GravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
+//        GravitySensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
+//        sm.registerListener(new MySensorListener(), GravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Acceleration
         AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
         sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
-    public void task_5hz(){}
+    public void InitialonCreate(){
+        TextView_Config();
+        Sensor_Config();
+        StartFlag=false;
+        //Initiallization of send button
+        sendButton = (Button) findViewById(R.id.buttonSend);
+        //Initialization of seekbar
+        seekbarDuty=(SeekBar)findViewById(R.id.seekBarDuty);
+    }
+    public void MySchedule(){
+        if(StartFlag){
+            MyTimer.schedule(Task_1000Hz,0,1);
+            MyTimer.schedule(Task_500Hz,0,2);
+            MyTimer.schedule(Task_200Hz,0,5);
+            MyTimer.schedule(Task_100Hz,0,10);
+        }
+    }
     /*
      * This handler will be passed to UsbService. Data received from serial port is displayed through this handler
      */
@@ -324,7 +427,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-//Acquire Sensor Data
+    //Acquire Sensor Data
     public class MySensorListener implements SensorEventListener {
 
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -346,17 +449,13 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case Sensor.TYPE_PRESSURE:
                     baro = event.values[0];
-                    tmp="Pressure is\n"+baro+"\n";
-                    textviewBaro.setText(tmp);
+                    //tmp="Height is\n"+dHeight+"\n";
+                    //textviewBaro.setText(tmp);
                     break;
                 case Sensor.TYPE_GYROSCOPE:
                     gyro[0]= event.values[0];
                     gyro[1]=event.values[1];
                     gyro[2]=event.values[2];
-                    tmp="gyrox is\n"+gyro[0]+"\n"
-                            +"gyroy is\n"+gyro[1]+"\n"
-                            +"gyroz is\n"+gyro[2]+"\n";
-                    //textviewGyro.setText(tmp);
                     break;
                 case Sensor.TYPE_ORIENTATION:
                     orientation[0]= event.values[0];
@@ -364,20 +463,6 @@ public class MainActivity extends AppCompatActivity {
                     orientation[2]=event.values[2];
                     break;
             }
-            String tmpS;
-            tmpS="x is"+a+"\n"+"y is"+b+"\n"+"z is"+c+"\np is+"+p+"\n";
-            byte[] aa = new byte[256];
-            int cnt;
-            for(cnt=0;cnt<256;cnt++)
-            {
-                aa[cnt]=(byte)cnt;//(byte)(cnt+cnt<<4);
-            }
-            //tv.setText(tmp);
-            //usbService.write("Sensor data acquired\n".getBytes());
-            //textviewAcceleration.setText(tmp);
-            int arr[]={0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22};
-            //tmpS="AAAAAAAABBBBBBBB";
-           // usbService.write(aa);
         }
 
     }
