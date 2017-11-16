@@ -30,6 +30,9 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.RecursiveAction;
 
+import java.math.* ;
+
+
 public class MainActivity extends AppCompatActivity {
 
     private SensorManager sm;
@@ -44,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
     public float[] acceleration=new float[3];
     public float[] gyro=new float[3];
     public float[] orientation=new float[3];
-    public float baro;
+//    public float baro;
 
     //Treatment of accelemeter
     int filterBuffer=100;
@@ -73,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
     //Treatment of gyrometer
     public float [][] gyro_ftmp=new float[3][100];
     public float [] gyro_f=new float[3];
+    public float [] gyro_f_dps=new float[3];
     public void gyro_filter(){
         int cnt;
         float tmpsumx=0,tmpsumy=0,tmpsumz=0;
@@ -93,11 +97,22 @@ public class MainActivity extends AppCompatActivity {
         gyro_f[1]=tmpsumy/100;
         gyro_f[2]=tmpsumz/100;
     }
+    public void gyro_to_dps(){
+        gyro_f_dps[0]=((float)57.295)*gyro_f[0];
+        gyro_f_dps[1]=((float)57.295)*gyro_f[1];
+        gyro_f_dps[2]=((float)57.295)*gyro_f[2];
+    }
+    /*
+    public void TxPrepare()
+    public void UsbSendIMU()
+    public void gyro_to_dps()
+    public void gyro_filter()
+    */
     //Treatment of barometer
     public Barometer height=new Barometer();
     public double dHeight,OriginHeight;
     public String stmpH;
-
+    public String s;
     //Transmission Buffer
     public byte[] TxBuffer=new byte[32];
 
@@ -113,7 +128,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             gyro_filter();
-            acc_filter();
+            gyro_to_dps();
+            //acc_filter();
         }
     };
     public TimerTask Task_500Hz=new TimerTask() {
@@ -132,6 +148,7 @@ public class MainActivity extends AppCompatActivity {
     public TimerTask Task_100Hz=new TimerTask() {
         @Override
         public void run() {
+
         }
     };
 
@@ -272,14 +289,24 @@ public class MainActivity extends AppCompatActivity {
         if (usbService!=null)
             usbService.write(TxBuffer);
     }
+
     public void TxPrepare(){
         byte[] tmp;
-        tmp=float2byte(acc_f[0]);
-        tmp=ByteArraryMerge(tmp,float2byte(acc_f[1]));
-        tmp=ByteArraryMerge(tmp,float2byte(acc_f[2]));
+        //tmp=float2byte(acc_f[0]);
+        //set the first as 1.2333 for test
+        tmp=float2byte(orientation[0]);
+        tmp=ByteArraryMerge(tmp,float2byte(orientation[1]));
+        tmp=ByteArraryMerge(tmp,float2byte(orientation[2]));
         tmp=ByteArraryMerge(tmp,float2byte(gyro_f[0]));
         tmp=ByteArraryMerge(tmp,float2byte(gyro_f[1]));
         tmp=ByteArraryMerge(tmp,float2byte(gyro_f[2]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[0]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[1]));
+        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[2]));
+         s="accx is\n"+gyro_f_dps[0]+"\n"
+                +"accy is\n"+gyro_f_dps[1]+"\n"
+                +"accz is\n"+gyro_f_dps[2]+"\n";
+//        display.append(s);
         TxBuffer=tmp;
     }
     public void test(){
@@ -350,9 +377,9 @@ public class MainActivity extends AppCompatActivity {
         //获取SensorManager对象
         sm = (SensorManager) getSystemService(SENSOR_SERVICE);
         //获取Sensor对象
-//        //Orientation
-//        OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-//       sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        //Orientation
+        OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+        sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
 //        //Pressure
 //        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
 //        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
@@ -363,8 +390,8 @@ public class MainActivity extends AppCompatActivity {
 //        GravitySensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
 //        sm.registerListener(new MySensorListener(), GravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Acceleration
-        AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+//        AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+//        sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
     public void InitialonCreate(){
         TextView_Config();
@@ -439,18 +466,18 @@ public class MainActivity extends AppCompatActivity {
             switch (event.sensor.getType())
             {
                 case Sensor.TYPE_LINEAR_ACCELERATION:
-                    acceleration[0]=event.values[0];
-                    acceleration[1]=event.values[1];
-                    acceleration[2]=event.values[2];
-                    tmp="accx is\n"+acceleration[0]+"\n"
-                            +"accy is\n"+acceleration[1]+"\n"
-                            +"accz is\n"+acceleration[2]+"\n";
-                    textviewAcceleration.setText(tmp);
+//                    acceleration[0]=event.values[0];
+//                    acceleration[1]=event.values[1];
+//                    acceleration[2]=event.values[2];
+//                    tmp="accx is\n"+acceleration[0]+"\n"
+//                            +"accy is\n"+acceleration[1]+"\n"
+//                            +"accz is\n"+acceleration[2]+"\n";
+//                    textviewAcceleration.setText(tmp);
                     break;
                 case Sensor.TYPE_PRESSURE:
-                    baro = event.values[0];
-                    //tmp="Height is\n"+dHeight+"\n";
-                    //textviewBaro.setText(tmp);
+//                    baro = event.values[0];
+//                    //tmp="Height is\n"+dHeight+"\n";
+//                    //textviewBaro.setText(tmp);
                     break;
                 case Sensor.TYPE_GYROSCOPE:
                     gyro[0]= event.values[0];
@@ -461,6 +488,10 @@ public class MainActivity extends AppCompatActivity {
                     orientation[0]= event.values[0];
                     orientation[1]=event.values[1];
                     orientation[2]=event.values[2];
+                    tmp="yaw is\n"+orientation[0]+"\n"
+                            +"roll is\n"+orientation[1]+"\n"
+                            +"pitch is\n"+orientation[2]+"\n";
+                    textviewBaro.setText(s);
                     break;
             }
         }
