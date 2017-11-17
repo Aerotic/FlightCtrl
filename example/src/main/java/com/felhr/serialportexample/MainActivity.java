@@ -44,9 +44,9 @@ public class MainActivity extends AppCompatActivity {
 
     //Raw data from sensors
     public float[] gravity = new float[3];
-    public float[] acceleration=new float[3];
-    public float[] gyro=new float[3];
-    public float[] orientation=new float[3];
+//    public float[] acceleration=new float[3];
+
+
 //    public float baro;
 
     //Treatment of accelemeter
@@ -74,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
         acc_f[2]=tmpsumz/filterBuffer;
     }
     //Treatment of gyrometer
+    public float[] gyro_raw=new float[3];
+    public float[] gyro=new float[3];
+    public float[] gyro_offset=new float[3];
     public float [][] gyro_ftmp=new float[3][100];
     public float [] gyro_f=new float[3];
     public float [] gyro_f_dps=new float[3];
@@ -102,12 +105,28 @@ public class MainActivity extends AppCompatActivity {
         gyro_f_dps[1]=((float)57.295)*gyro_f[1];
         gyro_f_dps[2]=((float)57.295)*gyro_f[2];
     }
-    /*
-    public void TxPrepare()
-    public void UsbSendIMU()
-    public void gyro_to_dps()
-    public void gyro_filter()
-    */
+    //Treatment of orientation
+    public float[] orientation=new float[3];
+    public float[] orientation_offset=new float[3];
+    public float[] orientation_raw=new float[3];
+
+    public void push(){
+
+    }
+    public void getOrientationOffset(){
+        orientation_offset[0]=orientation_raw[0];
+        orientation_offset[1]=orientation_raw[1];
+        orientation_offset[2]=orientation_raw[2];
+    }
+    public void getOrientation(){
+        orientation[0]=orientation_raw[0]-orientation_offset[0];
+        orientation[1]=orientation_raw[0]-orientation_offset[1];
+        orientation[2]=orientation_raw[0]-orientation_offset[2];
+    }
+
+    public void limit(){
+
+    }
     //Treatment of barometer
     public Barometer height=new Barometer();
     public double dHeight,OriginHeight;
@@ -399,8 +418,7 @@ public class MainActivity extends AppCompatActivity {
         StartFlag=false;
         //Initiallization of send button
         sendButton = (Button) findViewById(R.id.buttonSend);
-        //Initialization of seekbar
-        seekbarDuty=(SeekBar)findViewById(R.id.seekBarDuty);
+
     }
     public void MySchedule(){
         if(StartFlag){
@@ -485,9 +503,9 @@ public class MainActivity extends AppCompatActivity {
                     gyro[2]=event.values[2];
                     break;
                 case Sensor.TYPE_ORIENTATION:
-                    orientation[0]= event.values[0];
-                    orientation[1]=event.values[1];
-                    orientation[2]=event.values[2];
+                    orientation_raw[0]= event.values[0];
+                    orientation_raw[1]=event.values[1];
+                    orientation_raw[2]=event.values[2];
                     tmp="yaw is\n"+orientation[0]+"\n"
                             +"roll is\n"+orientation[1]+"\n"
                             +"pitch is\n"+orientation[2]+"\n";

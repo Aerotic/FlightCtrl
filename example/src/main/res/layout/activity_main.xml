@@ -24,7 +24,7 @@
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
         android:layout_below="@+id/textViewTitle"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="34dp"
         android:background="#FFFFFF"
         android:gravity="bottom"
         android:scrollbars="vertical" />
@@ -36,7 +36,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="22dp"
+        android:layout_marginBottom="73dp"
         android:text="Start" />
 
     <TextView
@@ -52,12 +52,12 @@
         android:id="@+id/textviewGyro"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/buttonSend"
         android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:layout_marginBottom="79dp"
-        android:layout_marginLeft="15dp"
-        android:layout_marginStart="15dp"
+        android:layout_below="@+id/textView1"
+        android:layout_marginLeft="13dp"
+        android:layout_marginStart="13dp"
+        android:layout_marginTop="59dp"
         android:text="Gyroscope" />
 
     <TextView
@@ -70,30 +70,14 @@
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true" />
 
-    <SeekBar
-        android:id="@+id/seekBarDuty"
-        style="@style/Widget.AppCompat.SeekBar"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@+id/buttonSend"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true"
-        android:layout_marginBottom="21dp"
-        android:layout_toLeftOf="@+id/textViewDuty"
-        android:layout_toStartOf="@+id/textViewDuty"
-        android:max="100"
-        android:progress="30" />
-
-    <TextView
-        android:id="@+id/textViewDuty"
+    <Button
+        android:id="@+id/buttonCalOffset"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/textView1"
-        android:layout_marginLeft="25dp"
-        android:layout_marginStart="25dp"
-        android:layout_marginTop="29dp"
-        android:layout_toEndOf="@+id/textViewTitle"
-        android:layout_toRightOf="@+id/textViewTitle"
-        android:text="Duty" />
+        android:layout_alignLeft="@+id/textViewTitle"
+        android:layout_alignStart="@+id/textViewTitle"
+        android:layout_alignTop="@+id/buttonSend"
+        android:layout_marginTop="59dp"
+        android:text="Cal Offset" />
 
 </RelativeLayout>
