@@ -33,4 +33,5 @@ android {
     }
 
     createJar.dependsOn(deleteJar, build)
+    buildToolsVersion '27.0.1'
 }
