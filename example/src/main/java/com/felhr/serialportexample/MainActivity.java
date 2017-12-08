@@ -11,6 +11,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -28,8 +29,14 @@ import java.lang.ref.WeakReference;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.TooManyListenersException;
 import java.util.concurrent.RecursiveAction;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
+import android.os.Environment;
 import java.math.* ;
 
 
@@ -42,9 +49,10 @@ public class MainActivity extends AppCompatActivity {
     //Start Flag:start transmission
     boolean StartFlag;
     boolean CalOffsetFlag;
+    public MyTestClass1 csv=new MyTestClass1();
     //Raw data from sensors
 //    public float[] gravity = new float[3];
-//    public float[] acc=new float[3];
+    public float[] acc=new float[3];
 //    public float[] acceleration=new float[3];
 
 
@@ -54,26 +62,26 @@ public class MainActivity extends AppCompatActivity {
     int filterBuffer=100;
     public float [][] acc_ftmp=new float[3][filterBuffer];
     public float [] acc_f=new float[3];
-//    public void acc_filter(){
-//        int cnt;
-//        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
-//        for(cnt=filterBuffer-1;cnt>0;cnt--){
-//            acc_ftmp[0][cnt]=acc_ftmp[0][cnt-1];
-//            acc_ftmp[1][cnt]=acc_ftmp[1][cnt-1];
-//            acc_ftmp[2][cnt]=acc_ftmp[2][cnt-1];
-//        }
-//        acc_ftmp[0][0]=acc[0];
-//        acc_ftmp[1][0]=acc[1];
-//        acc_ftmp[2][0]=acc[2];
-//        for(cnt=0;cnt<filterBuffer;cnt++){
-//            tmpsumx+=acc_ftmp[0][cnt];
-//            tmpsumy+=acc_ftmp[1][cnt];
-//            tmpsumz+=acc_ftmp[2][cnt];
-//        }
-//        acc_f[0]=tmpsumx/filterBuffer;
-//        acc_f[1]=tmpsumy/filterBuffer;
-//        acc_f[2]=tmpsumz/filterBuffer;
-//    }
+    public void acc_filter(){
+        int cnt;
+        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
+        for(cnt=filterBuffer-1;cnt>0;cnt--){
+            acc_ftmp[0][cnt]=acc_ftmp[0][cnt-1];
+            acc_ftmp[1][cnt]=acc_ftmp[1][cnt-1];
+            acc_ftmp[2][cnt]=acc_ftmp[2][cnt-1];
+        }
+        acc_ftmp[0][0]=acc[0];
+        acc_ftmp[1][0]=acc[1];
+        acc_ftmp[2][0]=acc[2];
+        for(cnt=0;cnt<filterBuffer;cnt++){
+            tmpsumx+=acc_ftmp[0][cnt];
+            tmpsumy+=acc_ftmp[1][cnt];
+            tmpsumz+=acc_ftmp[2][cnt];
+        }
+        acc_f[0]=tmpsumx/(float) filterBuffer;
+        acc_f[1]=tmpsumy/(float)filterBuffer;
+        acc_f[2]=tmpsumz/(float)filterBuffer;
+    }
     //Treatment of gyrometer
     public float[] gyro_raw=new float[3];
     public float[] gyro=new float[3];
@@ -97,9 +105,9 @@ public class MainActivity extends AppCompatActivity {
             tmpsumy+=gyro_ftmp[1][cnt];
             tmpsumz+=gyro_ftmp[2][cnt];
         }
-        gyro_f[0]=tmpsumx/100;
-        gyro_f[1]=tmpsumy/100;
-        gyro_f[2]=tmpsumz/100;
+        gyro_f[0]=tmpsumx/100.0f;
+        gyro_f[1]=tmpsumy/100.0f;
+        gyro_f[2]=tmpsumz/100.0f;
     }
     public void gyro_to_dps(){
         gyro_f_dps[0]=((float)57.295)*gyro_f[0];
@@ -142,35 +150,56 @@ public class MainActivity extends AppCompatActivity {
 
     public TextView textviewGyro,textviewAcceleration,textviewBaro,textviewDuty;
 //    public SeekBar seekbarDuty;
-    public Button sendButton;
+    public Button sendButton,sendacc;
     public Button buttonCalOffset;
 
 
 
     //Schedule
+    public long cur,last;
+    public long cnt;
     public Timer MyTimer=new Timer();
+    public boolean FreFlag;
     public TimerTask Task_1000Hz=new TimerTask() {
         @Override
         public void run() {
 
+
+            if (FreFlag){
+//                TxPrepare();
+//                UsbSendIMU();
+                FreFlag=false;
+            }
+            else
+                FreFlag=true;
+//            cur=System.currentTimeMillis();
+////            if (cur-last==1)
+//////                display.append("it's success \n");
+////            else
+////            {
+////                textviewGyro.append("it's "+cnt+"\n");
+////            }
+//
+//            System.out.print("time interval is ");
+//            System.out.println(cur-last);
+//            last=cur;
         }
     };
     public TimerTask Task_500Hz=new TimerTask() {
         @Override
         public void run() {
-            testTxPrepare();
-            UsbSendIMU();
+
+//            TxPrepare();
+//            UsbSendIMU();
         }
     };
+    double tmptime;
+
     public TimerTask Task_200Hz=new TimerTask() {
         @Override
         public void run() {
-//            gyro_filter();
-//            gyro_to_dps();
-//            getOrientation();
-//            TxPrepare();
-//            UsbSendIMU();
-            testTxPrepare();
+
+            TxPrepare();
             UsbSendIMU();
         }
     };
@@ -229,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mHandler = new MyHandler(this);
+        csv.open();
 
         InitialonCreate();
 
@@ -237,9 +267,27 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 if(!CalOffsetFlag) sendButton.setText("Offset Not Cal!");
                 else {
+
+                    if (!StartFlag){
+                        StartFlag=true;
+                        FreFlag=false;
+                        MySchedule();
+                        sendButton.setText("Running!");
+                    }
+                }
+            }
+        });
+        sendacc.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //csv.flush();
+                if(!CalOffsetFlag) sendButton.setText("Offset Not Cal!");
+                else {
                     StartFlag=true;
+                    accflag=true;
+                    FreFlag=false;
                     MySchedule();
-                    sendButton.setText("Running!");
+                    sendacc.setText("Running!");
                 }
             }
         });
@@ -254,6 +302,10 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+
+
+
+
         //MyTimer.schedule(PrintHeight,100,200);
 //        seekbarDuty.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 //            /*
@@ -332,20 +384,28 @@ public class MainActivity extends AppCompatActivity {
         if (usbService!=null)
             usbService.write(TxBuffer);
     }
-
+    public boolean accflag;
     public void TxPrepare(){
         byte[] tmp;
-        //tmp=float2byte(acc_f[0]);
-        //set the first as 1.2333 for test
-        tmp=float2byte(orientation[0]);
-        tmp=ByteArraryMerge(tmp,float2byte(orientation[1]));
-        tmp=ByteArraryMerge(tmp,float2byte(orientation[2]));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[0]));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[1]));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[2]));
-        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[0]));
-        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[1]));
-        tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[2]));
+        if (!accflag){
+            tmp=float2byte(orientation[0]);
+            tmp=ByteArraryMerge(tmp,float2byte(orientation[1]));
+            tmp=ByteArraryMerge(tmp,float2byte(orientation[2]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[0]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[1]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[2]));
+        }
+        else   {
+            tmp=float2byte(acc[0]);
+            tmp=ByteArraryMerge(tmp,float2byte(acc[1]));
+            tmp=ByteArraryMerge(tmp,float2byte(acc[2]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro[0]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro[1]));
+            tmp=ByteArraryMerge(tmp,float2byte(gyro[2]));
+        }
+//        tmp=ByteArraryMerge(tmp,float2byte(acc[0]));
+//        tmp=ByteArraryMerge(tmp,float2byte(acc[1]));
+//        tmp=ByteArraryMerge(tmp,float2byte(acc[2]));
         TxBuffer=tmp;
     }
     public void testTxPrepare(){
@@ -444,8 +504,8 @@ public class MainActivity extends AppCompatActivity {
 //        GravitySensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
 //        sm.registerListener(new MySensorListener(), GravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Acceleration
-//        AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-//        sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
     public void InitialonCreate(){
         TextView_Config();
@@ -454,17 +514,31 @@ public class MainActivity extends AppCompatActivity {
         CalOffsetFlag=false;
         //Initiallization of send button
         sendButton = (Button) findViewById(R.id.buttonSend);
+        sendacc = (Button) findViewById(R.id.send_acc);
         buttonCalOffset = (Button) findViewById(R.id.buttonCalOffset);
 
     }
     public void MySchedule(){
         if(StartFlag){
-            MyTimer.schedule(Task_1000Hz,0,1);
-            MyTimer.schedule(Task_500Hz,0,2);
-            MyTimer.schedule(Task_200Hz,0,5);
-            MyTimer.schedule(Task_100Hz,0,10);
+           // MyTimer.schedule(Task_1000Hz,0,1);
+//            MyTimer.schedule(Task_500Hz,0,2);
+            MyTimer.schedule(Task_200Hz,0,1);
+//            MyTimer.schedule(Task_100Hz,0,10);
         }
     }
+
+    public long[] timinterval=new long[3];
+    byte NOW=1,OLD=0,NEW=2;
+    double getTimeInterval(){
+        timinterval[OLD]=timinterval[NOW];
+        timinterval[NOW]=System.nanoTime();
+        timinterval[NEW]= timinterval[NOW] - timinterval[OLD] ;
+        return (double)timinterval[NEW]/1000000000.0;
+    }
+
+
+
+
     /*
      * This handler will be passed to UsbService. Data received from serial port is displayed through this handler
      */
@@ -520,7 +594,11 @@ public class MainActivity extends AppCompatActivity {
             String tmp="";
             switch (event.sensor.getType())
             {
-                case Sensor.TYPE_LINEAR_ACCELERATION:
+                case Sensor.TYPE_ACCELEROMETER:
+                    acc[0]= event.values[0];
+                    acc[1]=event.values[1];
+                    acc[2]=event.values[2];
+//                    csv.writeCsv(acc[0]+"",acc[1]+"",acc[2]+"");
                     break;
                 case Sensor.TYPE_PRESSURE:
 //                    baro = event.values[0];
@@ -531,6 +609,9 @@ public class MainActivity extends AppCompatActivity {
                     gyro[0]= event.values[0];
                     gyro[1]=event.values[1];
                     gyro[2]=event.values[2];
+//                    gyro_filter();
+//                    gyro_to_dps();
+//                    csv.writegyro(gyro[0]+"",gyro[1]+"",gyro[2]+"");
                     break;
                 case Sensor.TYPE_ORIENTATION:
                     orientation_raw[0]= event.values[0];
@@ -541,5 +622,104 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+    }
+
+
+    public class MyTestClass1 {
+
+        public static final String mComma = ",";
+        private  StringBuilder mStringBuilder = null, macc, mgyro = null;
+        private  String mFileName = null,acc =null,gyro = null;
+        String path;
+        public  void open() {
+            String folderName = null;
+            if(Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)){
+                path = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+                if (path != null) {
+                    folderName = path ;//+"/CSV/";
+                }
+            }
+
+            File fileRobo = new File(folderName);
+            if(!fileRobo.exists()){
+                fileRobo.mkdir();
+            }
+            mFileName =  "acc.csv";
+            gyro = "gyro.csv";
+            mgyro = new StringBuilder();
+            mgyro.append("gyrox");
+            mgyro.append(mComma);
+            mgyro.append("gyroy");
+            mgyro.append(mComma);
+            mgyro.append("gyroz");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyrox");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyroy");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyroz");
+            mgyro.append("\n");
+            mStringBuilder = new StringBuilder();
+            mStringBuilder.append("accx");
+            mStringBuilder.append(mComma);
+            mStringBuilder.append("accy");
+            mStringBuilder.append(mComma);
+            mStringBuilder.append("accz");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyrox");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyroy");
+//            mStringBuilder.append(mComma);
+//            mStringBuilder.append("gyroz");
+            mStringBuilder.append("\n");
+        }
+
+        public void writeCsv(String value1, String value2, String value3) {
+            mStringBuilder.append(value1);
+            mStringBuilder.append(mComma);
+            mStringBuilder.append(value2);
+            mStringBuilder.append(mComma);
+            mStringBuilder.append(value3);
+            mStringBuilder.append("\n");
+        }
+
+        public void writegyro(String value1, String value2, String value3) {
+            mgyro.append(value1);
+            mgyro.append(mComma);
+            mgyro.append(value2);
+            mgyro.append(mComma);
+            mgyro.append(value3);
+            mgyro.append("\n");
+        }
+        public  void flush() {
+            int cnt23=0;
+            if (mFileName != null) {
+                try {
+                    File file = new File(path,mFileName);
+                    File file1 = new File(path,gyro);
+//                    File file2 = new File(path,mFileName);
+                    FileOutputStream fos = new FileOutputStream(file, false);
+                    FileOutputStream fos1 = new FileOutputStream(file1, false);
+                    if(fos != null)
+                        cnt23=1;
+                    fos.write(mStringBuilder.toString().getBytes());
+                    fos.flush();
+                    fos.close();
+                    if(mgyro != null)
+                    {
+                        fos1.write(mgyro.toString().getBytes());
+                        fos1.flush();
+                        fos1.close();
+                    }
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                throw new RuntimeException("You should call open() before flush()");
+            }
+        }
     }
 }
