@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
     //Treatment of barometer
-    public Barometer height=new Barometer();
+//    public Barometer height=new Barometer();
     public double dHeight,OriginHeight;
     public String stmpH;
     public String s;
@@ -172,17 +172,7 @@ public class MainActivity extends AppCompatActivity {
             }
             else
                 FreFlag=true;
-//            cur=System.currentTimeMillis();
-////            if (cur-last==1)
-//////                display.append("it's success \n");
-////            else
-////            {
-////                textviewGyro.append("it's "+cnt+"\n");
-////            }
-//
-//            System.out.print("time interval is ");
-//            System.out.println(cur-last);
-//            last=cur;
+
         }
     };
     public TimerTask Task_500Hz=new TimerTask() {
@@ -286,7 +276,6 @@ public class MainActivity extends AppCompatActivity {
                     StartFlag=true;
                     accflag=true;
                     FreFlag=false;
-                    MySchedule();
                     sendacc.setText("Running!");
                 }
             }
@@ -295,9 +284,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 getOrientationOffset();
-//                if(orientation_offset[0]>10.0|orientation_offset[1]>10|orientation_offset[2]>10|orientation_offset[0]<-10|orientation_offset[1]<-10|orientation_offset[2]<-10)
-//                    buttonCalOffset.setText("Fail!Retry,plz");
-//                else
                     CalOffsetFlag=true;
 
             }
