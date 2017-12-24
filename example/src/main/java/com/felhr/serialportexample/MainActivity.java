@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -24,6 +25,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import static java.lang.Math.max;
 import static java.lang.Math.sqrt;
 import java.lang.ref.WeakReference;
 import java.util.Set;
@@ -39,11 +41,15 @@ import java.io.IOException;
 import android.os.Environment;
 import java.math.* ;
 
-
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "RPM";
+
+
+    public flightctrl mFC = new flightctrl();
+
     private SensorManager sm;
-    private Sensor GyroSensor,GravitySensor,PressureSensor,AccelerationSensor,OrientationSensor;
+    private Sensor GyroSensor,GravitySensor,PressureSensor,AccelerationSensor,OrientationSensor,RotationVectorSensor;
     private StringBuffer sb;
     private TextView tvValue;
     //Start Flag:start transmission
@@ -51,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
     boolean CalOffsetFlag;
     public MyTestClass1 csv=new MyTestClass1();
     //Raw data from sensors
-//    public float[] gravity = new float[3];
     public float[] acc=new float[3];
 //    public float[] acceleration=new float[3];
 
@@ -88,117 +93,125 @@ public class MainActivity extends AppCompatActivity {
     public float[] gyro_offset=new float[3];
     public float [][] gyro_ftmp=new float[3][100];
     public float [] gyro_f=new float[3];
-    public float [] gyro_f_dps=new float[3];
-    public void gyro_filter(){
-        int cnt;
-        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
-        for(cnt=99;cnt>0;cnt--){
-            gyro_ftmp[0][cnt]=gyro_ftmp[0][cnt-1];
-            gyro_ftmp[1][cnt]=gyro_ftmp[1][cnt-1];
-            gyro_ftmp[2][cnt]=gyro_ftmp[2][cnt-1];
-        }
-        gyro_ftmp[0][0]=gyro[0];
-        gyro_ftmp[1][0]=gyro[1];
-        gyro_ftmp[2][0]=gyro[2];
-        for(cnt=0;cnt<100;cnt++){
-            tmpsumx+=gyro_ftmp[0][cnt];
-            tmpsumy+=gyro_ftmp[1][cnt];
-            tmpsumz+=gyro_ftmp[2][cnt];
-        }
-        gyro_f[0]=tmpsumx/100.0f;
-        gyro_f[1]=tmpsumy/100.0f;
-        gyro_f[2]=tmpsumz/100.0f;
-    }
+    public float [] gyro_dps=new float[3];
     public void gyro_to_dps(){
-        gyro_f_dps[0]=((float)57.295)*gyro_f[0];
-        gyro_f_dps[1]=((float)57.295)*gyro_f[1];
-        gyro_f_dps[2]=((float)57.295)*gyro_f[2];
+        gyro_dps[0]=((float)57.295)*gyro[0];
+        gyro_dps[1]=((float)57.295)*gyro[1];
+        gyro_dps[2]=((float)57.295)*gyro[2];
     }
     //Treatment of orientation
     public float[] orientation=new float[3];
     public float[] orientation_offset=new float[3];
     public float[] orientation_raw=new float[3];
 
-    public void push(){
-
-    }
     public void getOrientationOffset(){
         orientation_offset[0]=orientation_raw[0];
         orientation_offset[1]=orientation_raw[1];
         orientation_offset[2]=orientation_raw[2];
     }
-    public void getOrientation(){
-        orientation[0]=orientation_raw[0]-orientation_offset[0];
-        float tmp=-orientation_raw[1]+orientation_offset[1];
-        if(tmp>180)
-            orientation[1]=tmp-360.0f;
-        else
-            orientation[1]=tmp;
-        orientation[2]=orientation_raw[2]-orientation_offset[2];
-    }
 
-    public void limit(){
 
-    }
     //Treatment of barometer
-//    public Barometer height=new Barometer();
-    public double dHeight,OriginHeight;
-    public String stmpH;
-    public String s;
+
     //Transmission Buffer
     public byte[] TxBuffer=new byte[32];
 
     public TextView textviewGyro,textviewAcceleration,textviewBaro,textviewDuty;
-//    public SeekBar seekbarDuty;
+    //    public SeekBar seekbarDuty;
     public Button sendButton,sendacc;
     public Button buttonCalOffset;
 
 
 
     //Schedule
-    public long cur,last;
-    public long cnt;
     public Timer MyTimer=new Timer();
     public boolean FreFlag;
-    public TimerTask Task_1000Hz=new TimerTask() {
+    public short[] MotorRPM = new short[4];
+    public void FCLoop(){
+        int tmpi;
+        for (tmpi=0;tmpi<10;tmpi++) mFC.getTimeInterval(tmpi);
+        MyTimer.schedule(Task_Schedule,0,1);
+    }
+    public TimerTask Task_Schedule = new TimerTask() {
         @Override
         public void run() {
+            cnt_20hz++;
+            cnt_50hz++;
+            cnt_100hz++;
+            cnt_200hz++;
+            cnt_500hz++;
+            cnt_1000hz++;
+            MySchedule();
+        }
+        private int cnt_1000hz, cnt_500hz, cnt_200hz, cnt_100hz, cnt_50hz, cnt_20hz;
+        public void MySchedule(){
 
-
-            if (FreFlag){
-//                TxPrepare();
-//                UsbSendIMU();
-                FreFlag=false;
+            if (cnt_1000hz > 0){
+                Task_1000Hz();
+                cnt_1000hz = 0;
             }
-            else
-                FreFlag=true;
+
+            if (cnt_500hz > 1){
+                Task_500Hz();
+                cnt_500hz = 0;
+            }
+
+            if (cnt_200hz > 4){
+                Task_200Hz();
+                cnt_200hz = 0;
+            }
+
+            if (cnt_100hz > 9){
+                Task_100Hz();
+                cnt_100hz = 0;
+            }
+
+            if (cnt_50hz > 19){
+                Task_50Hz();
+                cnt_100hz = 0;
+            }
+
+            if (cnt_20hz > 49){
+                Task_20Hz();
+                short[] rcdata = {0,0,0,200};
+                mFC.getRcData(rcdata,true);
+                cnt_100hz = 0;
+            }
 
         }
-    };
-    public TimerTask Task_500Hz=new TimerTask() {
-        @Override
-        public void run() {
-
-//            TxPrepare();
-//            UsbSendIMU();
+        public void Task_1000Hz(){
+            mFC.getRotationVector(RotationVector);
+            mFC.getAcc(acc);
+            mFC.getOrientation(orientation_raw);
+            mFC.getGyro(gyro_dps,gyro);
         }
-    };
-    double tmptime;
-
-    public TimerTask Task_200Hz=new TimerTask() {
-        @Override
-        public void run() {
-
-            TxPrepare();
-            UsbSendIMU();
-        }
-    };
-    public TimerTask Task_100Hz=new TimerTask() {
-        @Override
-        public void run() {
+        public void Task_500Hz(){
+            double loop_time_500hz = mFC.getTimeInterval(0);
+            mFC.pid.pidinner.run(loop_time_500hz);
+            MotorRPM = mFC.output();
 
         }
+        public void Task_200Hz(){
+            double loop_time_200hz = mFC.getTimeInterval(1);
+            mFC.pid.pidouter.run(loop_time_200hz);
+            mFC.pid.pidinertialnav.Update_Velocities_Positions_Z(loop_time_200hz);
+        }
+        public void Task_100Hz(){
+            double loop_time_100hz = mFC.getTimeInterval(2);
+            mFC.pid.pidhgtctrl.Height_Acceleration_Control(loop_time_100hz);
+        }
+        public void Task_50Hz(){
+            double loop_time_50hz = mFC.getTimeInterval(3);
+            mFC.pid.pidhgtctrl.Height_Velocity_Control(loop_time_50hz);
+        }
+        public void Task_20Hz(){
+            double loop_time_20hz = mFC.getTimeInterval(4);
+            mFC.pid.pidhgtctrl.Height_Position_Control(loop_time_20hz);
+            Log.e(TAG, "is" + MotorRPM[0] +" "+ MotorRPM[1] + " "+MotorRPM[2] + " "+ MotorRPM[3]);
+            Log.e(TAG, "angle" + mFC.orientation[0] +" "+ mFC.orientation[1] + " "+mFC.orientation[2]);
+        }
     };
+
 
 
 
@@ -210,16 +223,16 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             switch (intent.getAction()) {
                 case UsbService.ACTION_USB_PERMISSION_GRANTED: // USB PERMISSION GRANTED
-                    Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "UAV Ready", Toast.LENGTH_SHORT).show();
                     break;
                 case UsbService.ACTION_USB_PERMISSION_NOT_GRANTED: // USB PERMISSION NOT GRANTED
                     Toast.makeText(context, "USB Permission not granted", Toast.LENGTH_SHORT).show();
                     break;
                 case UsbService.ACTION_NO_USB: // NO USB CONNECTED
-                    Toast.makeText(context, "No USB connected", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "No UAV connected", Toast.LENGTH_SHORT).show();
                     break;
                 case UsbService.ACTION_USB_DISCONNECTED: // USB DISCONNECTED
-                    Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "UAV disconnected", Toast.LENGTH_SHORT).show();
                     break;
                 case UsbService.ACTION_USB_NOT_SUPPORTED: // USB NOT SUPPORTED
                     Toast.makeText(context, "USB device not supported", Toast.LENGTH_SHORT).show();
@@ -248,21 +261,21 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mHandler = new MyHandler(this);
-        csv.open();
-
         InitialonCreate();
 
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                csv.flush();
                 if(!CalOffsetFlag) sendButton.setText("Offset Not Cal!");
                 else {
 
                     if (!StartFlag){
                         StartFlag=true;
                         FreFlag=false;
-                        MySchedule();
+
                         sendButton.setText("Running!");
+
                     }
                 }
             }
@@ -276,7 +289,12 @@ public class MainActivity extends AppCompatActivity {
                     StartFlag=true;
                     accflag=true;
                     FreFlag=false;
+                    FCLoop();
                     sendacc.setText("Running!");
+                    TxPrepare();
+                    UsbSendIMU();
+                    // MySchedule();
+
                 }
             }
         });
@@ -284,7 +302,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 getOrientationOffset();
-                    CalOffsetFlag=true;
+                byte[] BeginSignal = {(byte)0xff,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa};
+                if (usbService!=null)
+                    usbService.write(BeginSignal);
+                CalOffsetFlag=true;
 
             }
         });
@@ -292,36 +313,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-        //MyTimer.schedule(PrintHeight,100,200);
-//        seekbarDuty.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-//            /*
-//            * seekbar改变时的事件监听处理
-//            * */
-//            @Override
-//            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-//                textviewDuty.setText("Duty is "+progress+"%");
-//                byte[] tmp=new byte[1];
-////                tmp[0]=(byte)progress;
-////                if (usbService != null) usbService.write(tmp);
-////                else Toast.makeText(MainActivity.this,"No USB Device Connected",Toast.LENGTH_SHORT).show();
-//
-//                //Log.d("debug",String.valueOf(seekBar.getId()));
-//            }
-//            /*
-//            * 按住seekbar时的事件监听处理
-//            * */
-//            @Override
-//            public void onStartTrackingTouch(SeekBar seekBar) {
-//                //Toast.makeText(MainActivity.this,"按住seekbar",Toast.LENGTH_SHORT).show();
-//            }
-//            /*
-//            * 放开seekbar时的时间监听处理
-//            * */
-//            @Override
-//            public void onStopTrackingTouch(SeekBar seekBar) {
-//                //Toast.makeText(MainActivity.this,"放开seekbar",Toast.LENGTH_SHORT).show();
-//            }
-//        });
+
 
     }
 
@@ -372,53 +364,12 @@ public class MainActivity extends AppCompatActivity {
     }
     public boolean accflag;
     public void TxPrepare(){
-        byte[] tmp;
-        if (!accflag){
-            tmp=float2byte(orientation[0]);
-            tmp=ByteArraryMerge(tmp,float2byte(orientation[1]));
-            tmp=ByteArraryMerge(tmp,float2byte(orientation[2]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[0]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[1]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro_f_dps[2]));
-        }
-        else   {
-            tmp=float2byte(acc[0]);
-            tmp=ByteArraryMerge(tmp,float2byte(acc[1]));
-            tmp=ByteArraryMerge(tmp,float2byte(acc[2]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro[0]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro[1]));
-            tmp=ByteArraryMerge(tmp,float2byte(gyro[2]));
-        }
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[0]));
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[1]));
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[2]));
-        TxBuffer=tmp;
+        byte[] tmp ={(byte)0xaa};
+        TxBuffer= tmp; //new String("abcdefghijklmnopqrstuvwxyz").getBytes();
+        Log.e(TAG, "TxPrepare: " + TxBuffer.length);
     }
-    public void testTxPrepare(){
-        byte[] tmp;
-        //tmp=float2byte(acc_f[0]);
-        //set the first as 1.2333 for test
-        tmp=float2byte(1.0f);
-        tmp=ByteArraryMerge(tmp,float2byte(2.0f));
-        tmp=ByteArraryMerge(tmp,float2byte(3.0f));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[0]));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[1]));
-//        tmp=ByteArraryMerge(tmp,float2byte(gyro_f[2]));
-        tmp=ByteArraryMerge(tmp,float2byte(4.0f));
-        tmp=ByteArraryMerge(tmp,float2byte(5.0f));
-        tmp=ByteArraryMerge(tmp,float2byte(6.0f));
-        TxBuffer=tmp;
-    }
-    public void test(){
-        byte[][] tmp=new byte[6][4];
-        int i,j,cnt=0;
-        for(i=0;i<6;i++) for (j=0;j<4;j++) tmp[i][j]=TxBuffer[cnt++];
-        float[] f=new float[6];
-        for (i=0;i<6;i++) f[i]= byte2float(tmp[i],0);
-        String stmp="\tacc\tx\ty\tz\n"+"\t"+f[0]+"\t"+f[1]+"\t"+f[2]+"\n"+
-                    "\tgyro\tx\ty\tz\n"+"\t"+f[3]+"\t"+f[4]+"\t"+f[5]+"\n";
-        System.out.println(stmp);
-    }
+
+
 
     public byte[] ByteArraryMerge(byte[] a,byte[] b){
         byte[] tmp=new byte[a.length+b.length];
@@ -466,7 +417,7 @@ public class MainActivity extends AppCompatActivity {
     }
     public void TextView_Config(){
         //Initialization of textview widgets
-        //textviewDuty=(TextView)findViewById(R.id.textViewDuty);
+
         textviewBaro=(TextView) findViewById(R.id.textviewGravity);
         textviewAcceleration=(TextView) findViewById(R.id.textviewAcceleration);
         textviewGyro=(TextView) findViewById(R.id.textviewGyro);
@@ -480,18 +431,16 @@ public class MainActivity extends AppCompatActivity {
         //Orientation
         OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
         sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
-//        //Pressure
-//        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
-//        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        //RotationVector
+        RotationVectorSensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        sm.registerListener(new MySensorListener(), RotationVectorSensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Gyroscope
         GyroSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         sm.registerListener(new MySensorListener(), GyroSensor, SensorManager.SENSOR_DELAY_FASTEST);
-        //Gravity
-//        GravitySensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
-//        sm.registerListener(new MySensorListener(), GravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Acceleration
         AccelerationSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         sm.registerListener(new MySensorListener(), AccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+
     }
     public void InitialonCreate(){
         TextView_Config();
@@ -504,14 +453,7 @@ public class MainActivity extends AppCompatActivity {
         buttonCalOffset = (Button) findViewById(R.id.buttonCalOffset);
 
     }
-    public void MySchedule(){
-        if(StartFlag){
-           // MyTimer.schedule(Task_1000Hz,0,1);
-//            MyTimer.schedule(Task_500Hz,0,2);
-            MyTimer.schedule(Task_200Hz,0,1);
-//            MyTimer.schedule(Task_100Hz,0,10);
-        }
-    }
+
 
     public long[] timinterval=new long[3];
     byte NOW=1,OLD=0,NEW=2;
@@ -541,24 +483,9 @@ public class MainActivity extends AppCompatActivity {
                 case UsbService.MESSAGE_FROM_SERIAL_PORT:
                     int[] test=new int[200];
                     byte[] rawdata = (byte[]) msg.obj;
-                    String stmp=rawdata[0]+"*\n";
-                    mActivity.get().display.append(stmp);
-//                    byte[] raw=rawdata.getBytes();
-//                    if (mActivity.get().flag){
-//                        mActivity.get().flag=false;
-//                        tmp[1]=raw[0];
-//                        int decode=0;
-//                        if (tmp[0]!=0)
-//                            decode+=128;
-//
-//
-//                        decode+=tmp[1];
-//                        mActivity.get().display.append("Data recieved is "+decode+"\n");
-//                    }
-//                    else {
-//                        mActivity.get().flag=true;
-//                        tmp[0]=raw[0];
-//                    }
+//                    short shorttmp = (short) ((rawdata[0]<<8) | rawdata[1]);
+                    Log.e(TAG, "ch1 is" + rawdata[0] +"  " +rawdata.length);
+                    //if (rawdata.length != 0) Log.e(TAG, "handleMessage: "+rawdata[0] );
                     break;
                 case UsbService.CTS_CHANGE:
                     Toast.makeText(mActivity.get(), "CTS_CHANGE",Toast.LENGTH_LONG).show();
@@ -570,6 +497,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     //Acquire Sensor Data
+    public float[] RotationVector = new float[4];
     public class MySensorListener implements SensorEventListener {
 
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -585,24 +513,28 @@ public class MainActivity extends AppCompatActivity {
                     acc[1]=event.values[1];
                     acc[2]=event.values[2];
 //                    csv.writeCsv(acc[0]+"",acc[1]+"",acc[2]+"");
+
                     break;
-                case Sensor.TYPE_PRESSURE:
-//                    baro = event.values[0];
-//                    //tmp="Height is\n"+dHeight+"\n";
-//                    //textviewBaro.setText(tmp);
+                case Sensor.TYPE_ROTATION_VECTOR:
+
+                    RotationVector[0] = event.values[0];
+                    RotationVector[1] = event.values[1];
+                    RotationVector[2] = event.values[2];
+                    RotationVector[3] = event.values[3];
+
                     break;
                 case Sensor.TYPE_GYROSCOPE:
                     gyro[0]= event.values[0];
                     gyro[1]=event.values[1];
                     gyro[2]=event.values[2];
-//                    gyro_filter();
-//                    gyro_to_dps();
-//                    csv.writegyro(gyro[0]+"",gyro[1]+"",gyro[2]+"");
+                    gyro_to_dps();
+
                     break;
                 case Sensor.TYPE_ORIENTATION:
                     orientation_raw[0]= event.values[0];
                     orientation_raw[1]=event.values[1];
                     orientation_raw[2]=event.values[2];
+
 //                    textviewGyro.setText(orientation[0]+"\n"+orientation[1]+"\n"+orientation[2]+"\n");
                     break;
             }
