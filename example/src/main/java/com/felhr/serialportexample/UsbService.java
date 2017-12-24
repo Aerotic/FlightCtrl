@@ -12,6 +12,7 @@ import android.hardware.usb.UsbManager;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.felhr.usbserial.CDCSerialDevice;
 import com.felhr.usbserial.UsbSerialDevice;
@@ -57,6 +58,10 @@ public class UsbService extends Service {
      *  In this particular example. byte stream is converted to String and send to UI thread to
      *  be treated there.
      */
+    private static final int DMABufferSize = 9;
+    private static int cnt = 0;
+    private  byte[] result = new byte[DMABufferSize];
+    private static final String TAG = "received";
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback() {
         @Override
         public void onReceivedData(byte[] arg0) {
@@ -69,12 +74,33 @@ public class UsbService extends Service {
 //            }catch (UnsupportedEncodingException e) {
 //                e.printStackTrace();
 //            }
-            String data = new String(arg0);//new String(arg0, "UTF-8");
-            byte[] tmp=data.getBytes();
-            if (mHandler != null)
-                mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, arg0).sendToTarget();
+            int cn;
+            String tmp = "";
+            for (cn=0;cn<arg0.length;cn++) {
+                tmp += new String(arg0[cn]+" ");
+            }
+            Log.e(TAG, "data :"+ tmp );
+            if (cnt == 0){
+                result = arg0;
+                cnt = result.length;
+            }
+            else {
+                result = ByteArraryMerge(result,arg0);
+                cnt = result.length;
+            }
+            //byte[] tmp=arg0;
+            if ((mHandler != null)&&(cnt == DMABufferSize)){
+                cnt = 0;
+                mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, result).sendToTarget();
+            }
         }
     };
+    public byte[] ByteArraryMerge(byte[] a,byte[] b){
+        byte[] tmp=new byte[a.length+b.length];
+        System.arraycopy(a,0,tmp,0,a.length);
+        System.arraycopy(b,0,tmp,a.length,b.length);
+        return tmp;
+    }
 
     /*
      * State changes in the CTS line will be received here

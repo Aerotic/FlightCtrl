@@ -15,15 +15,19 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
+import android.os.ParcelUuid;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import static java.lang.Math.floor;
 import static java.lang.Math.sqrt;
 import java.lang.ref.WeakReference;
 import java.util.Set;
@@ -51,10 +55,8 @@ public class MainActivity extends AppCompatActivity {
     boolean CalOffsetFlag;
     public MyTestClass1 csv=new MyTestClass1();
     //Raw data from sensors
-//    public float[] gravity = new float[3];
-    public float[] acc=new float[3];
-//    public float[] acceleration=new float[3];
 
+    public float[] acc=new float[3];
 
 //    public float baro;
 
@@ -62,26 +64,7 @@ public class MainActivity extends AppCompatActivity {
     int filterBuffer=100;
     public float [][] acc_ftmp=new float[3][filterBuffer];
     public float [] acc_f=new float[3];
-    public void acc_filter(){
-        int cnt;
-        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
-        for(cnt=filterBuffer-1;cnt>0;cnt--){
-            acc_ftmp[0][cnt]=acc_ftmp[0][cnt-1];
-            acc_ftmp[1][cnt]=acc_ftmp[1][cnt-1];
-            acc_ftmp[2][cnt]=acc_ftmp[2][cnt-1];
-        }
-        acc_ftmp[0][0]=acc[0];
-        acc_ftmp[1][0]=acc[1];
-        acc_ftmp[2][0]=acc[2];
-        for(cnt=0;cnt<filterBuffer;cnt++){
-            tmpsumx+=acc_ftmp[0][cnt];
-            tmpsumy+=acc_ftmp[1][cnt];
-            tmpsumz+=acc_ftmp[2][cnt];
-        }
-        acc_f[0]=tmpsumx/(float) filterBuffer;
-        acc_f[1]=tmpsumy/(float)filterBuffer;
-        acc_f[2]=tmpsumz/(float)filterBuffer;
-    }
+
     //Treatment of gyrometer
     public float[] gyro_raw=new float[3];
     public float[] gyro=new float[3];
@@ -89,26 +72,6 @@ public class MainActivity extends AppCompatActivity {
     public float [][] gyro_ftmp=new float[3][100];
     public float [] gyro_f=new float[3];
     public float [] gyro_f_dps=new float[3];
-    public void gyro_filter(){
-        int cnt;
-        float tmpsumx=0,tmpsumy=0,tmpsumz=0;
-        for(cnt=99;cnt>0;cnt--){
-            gyro_ftmp[0][cnt]=gyro_ftmp[0][cnt-1];
-            gyro_ftmp[1][cnt]=gyro_ftmp[1][cnt-1];
-            gyro_ftmp[2][cnt]=gyro_ftmp[2][cnt-1];
-        }
-        gyro_ftmp[0][0]=gyro[0];
-        gyro_ftmp[1][0]=gyro[1];
-        gyro_ftmp[2][0]=gyro[2];
-        for(cnt=0;cnt<100;cnt++){
-            tmpsumx+=gyro_ftmp[0][cnt];
-            tmpsumy+=gyro_ftmp[1][cnt];
-            tmpsumz+=gyro_ftmp[2][cnt];
-        }
-        gyro_f[0]=tmpsumx/100.0f;
-        gyro_f[1]=tmpsumy/100.0f;
-        gyro_f[2]=tmpsumz/100.0f;
-    }
     public void gyro_to_dps(){
         gyro_f_dps[0]=((float)57.295)*gyro_f[0];
         gyro_f_dps[1]=((float)57.295)*gyro_f[1];
@@ -119,9 +82,6 @@ public class MainActivity extends AppCompatActivity {
     public float[] orientation_offset=new float[3];
     public float[] orientation_raw=new float[3];
 
-    public void push(){
-
-    }
     public void getOrientationOffset(){
         orientation_offset[0]=orientation_raw[0];
         orientation_offset[1]=orientation_raw[1];
@@ -172,17 +132,7 @@ public class MainActivity extends AppCompatActivity {
             }
             else
                 FreFlag=true;
-//            cur=System.currentTimeMillis();
-////            if (cur-last==1)
-//////                display.append("it's success \n");
-////            else
-////            {
-////                textviewGyro.append("it's "+cnt+"\n");
-////            }
-//
-//            System.out.print("time interval is ");
-//            System.out.println(cur-last);
-//            last=cur;
+
         }
     };
     public TimerTask Task_500Hz=new TimerTask() {
@@ -294,10 +244,13 @@ public class MainActivity extends AppCompatActivity {
         buttonCalOffset.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                getOrientationOffset();
-//                if(orientation_offset[0]>10.0|orientation_offset[1]>10|orientation_offset[2]>10|orientation_offset[0]<-10|orientation_offset[1]<-10|orientation_offset[2]<-10)
-//                    buttonCalOffset.setText("Fail!Retry,plz");
-//                else
+                byte[] BeginSignal = {(byte)0xff,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa,(byte)0xaa};
+                if (usbService!=null)
+                    usbService.write(BeginSignal);
+//                getOrientationOffset();
+////                if(orientation_offset[0]>10.0|orientation_offset[1]>10|orientation_offset[2]>10|orientation_offset[0]<-10|orientation_offset[1]<-10|orientation_offset[2]<-10)
+////                    buttonCalOffset.setText("Fail!Retry,plz");
+////                else
                     CalOffsetFlag=true;
 
             }
@@ -403,9 +356,7 @@ public class MainActivity extends AppCompatActivity {
             tmp=ByteArraryMerge(tmp,float2byte(gyro[1]));
             tmp=ByteArraryMerge(tmp,float2byte(gyro[2]));
         }
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[0]));
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[1]));
-//        tmp=ByteArraryMerge(tmp,float2byte(acc[2]));
+
         TxBuffer=tmp;
     }
     public void testTxPrepare(){
@@ -494,9 +445,9 @@ public class MainActivity extends AppCompatActivity {
         //Orientation
         OrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
         sm.registerListener(new MySensorListener(), OrientationSensor, SensorManager.SENSOR_DELAY_FASTEST);
-//        //Pressure
-//        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
-//        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        //Pressure
+        PressureSensor = sm.getDefaultSensor(Sensor.TYPE_PRESSURE);
+        sm.registerListener(new MySensorListener(), PressureSensor, SensorManager.SENSOR_DELAY_FASTEST);
         //Gyroscope
         GyroSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         sm.registerListener(new MySensorListener(), GyroSensor, SensorManager.SENSOR_DELAY_FASTEST);
@@ -522,7 +473,7 @@ public class MainActivity extends AppCompatActivity {
         if(StartFlag){
            // MyTimer.schedule(Task_1000Hz,0,1);
 //            MyTimer.schedule(Task_500Hz,0,2);
-            MyTimer.schedule(Task_200Hz,0,1);
+            MyTimer.schedule(Task_200Hz,0,7);
 //            MyTimer.schedule(Task_100Hz,0,10);
         }
     }
@@ -542,6 +493,7 @@ public class MainActivity extends AppCompatActivity {
     /*
      * This handler will be passed to UsbService. Data received from serial port is displayed through this handler
      */
+    private static final String TAG = new String("HandlerMsg from USB");
     private static class MyHandler extends Handler {
         private final WeakReference<MainActivity> mActivity;
 
@@ -553,26 +505,12 @@ public class MainActivity extends AppCompatActivity {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case UsbService.MESSAGE_FROM_SERIAL_PORT:
-                    int[] test=new int[200];
+
                     byte[] rawdata = (byte[]) msg.obj;
-                    String stmp=rawdata[0]+"*\n";
-                    mActivity.get().display.append(stmp);
-//                    byte[] raw=rawdata.getBytes();
-//                    if (mActivity.get().flag){
-//                        mActivity.get().flag=false;
-//                        tmp[1]=raw[0];
-//                        int decode=0;
-//                        if (tmp[0]!=0)
-//                            decode+=128;
-//
-//
-//                        decode+=tmp[1];
-//                        mActivity.get().display.append("Data recieved is "+decode+"\n");
-//                    }
-//                    else {
-//                        mActivity.get().flag=true;
-//                        tmp[0]=raw[0];
-//                    }
+//                    float[] rc = getRemoteChannelValue(rawdata,3);
+//                    Log.e(TAG, "RX "+rc[0]+" "+rc[1]+" "+rc[2]);
+                    short shorttmp = (short) ((rawdata[0]<<8) | rawdata[1]);
+                    Log.e(TAG, "ch1 is: " + shorttmp);
                     break;
                 case UsbService.CTS_CHANGE:
                     Toast.makeText(mActivity.get(), "CTS_CHANGE",Toast.LENGTH_LONG).show();
@@ -582,6 +520,15 @@ public class MainActivity extends AppCompatActivity {
                     break;
             }
         }
+        public float[] getRemoteChannelValue(byte[] rawdata,int ChannelNum){
+            byte[][] raw = new byte[ChannelNum][4];
+            int i;
+            for (i = 0;i<ChannelNum;i++) System.arraycopy(rawdata,i*4,raw[i],0,4);
+
+            float[] result = new float[ChannelNum];
+            for (i=0;i<ChannelNum;i++) result[i] = mActivity.get().byte2float(raw[i],0);
+            return result;
+        }
     }
     //Acquire Sensor Data
     public class MySensorListener implements SensorEventListener {
@@ -589,7 +536,8 @@ public class MainActivity extends AppCompatActivity {
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
         }
-
+        private float initial_amp = 0.0f;
+        private boolean firstflag =true;
         public void onSensorChanged(SensorEvent event) {
             String tmp="";
             switch (event.sensor.getType())
@@ -598,20 +546,19 @@ public class MainActivity extends AppCompatActivity {
                     acc[0]= event.values[0];
                     acc[1]=event.values[1];
                     acc[2]=event.values[2];
-//                    csv.writeCsv(acc[0]+"",acc[1]+"",acc[2]+"");
                     break;
                 case Sensor.TYPE_PRESSURE:
-//                    baro = event.values[0];
-//                    //tmp="Height is\n"+dHeight+"\n";
-//                    //textviewBaro.setText(tmp);
+                    if (firstflag){
+                        initial_amp = event.values[0];
+                        firstflag = false;
+                    }
+                    float altitude= SensorManager.getAltitude(initial_amp,event.values[0]);
+//                    Log.e(TAG, "onSensorChanged: "+ altitude);
                     break;
                 case Sensor.TYPE_GYROSCOPE:
                     gyro[0]= event.values[0];
                     gyro[1]=event.values[1];
                     gyro[2]=event.values[2];
-//                    gyro_filter();
-//                    gyro_to_dps();
-//                    csv.writegyro(gyro[0]+"",gyro[1]+"",gyro[2]+"");
                     break;
                 case Sensor.TYPE_ORIENTATION:
                     orientation_raw[0]= event.values[0];
