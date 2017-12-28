@@ -60,15 +60,7 @@ public class UsbService extends Service {
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback() {
         @Override
         public void onReceivedData(byte[] arg0) {
-//            try {
-//                String gezaizhelibuzhidaozhengshadebianliang=new String(arg0, "UTF-8");
-//                String data = new String(arg0);//new String(arg0, "UTF-8");
-//                byte[] tmp=data.getBytes();
-//                if (mHandler != null)
-//                    mHandler.obtainMessage(MESSAGE_FROM_SERIAL_PORT, tmp).sendToTarget();
-//            }catch (UnsupportedEncodingException e) {
-//                e.printStackTrace();
-//            }
+
             String data = new String(arg0);//new String(arg0, "UTF-8");
             byte[] tmp=data.getBytes();
             if (mHandler != null)

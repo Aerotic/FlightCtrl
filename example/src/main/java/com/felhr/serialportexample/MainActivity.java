@@ -43,7 +43,7 @@ import java.math.* ;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "RPM";
+    private static final String TAG = "MainActivity";
 
 
     public flightctrl mFC = new flightctrl();
@@ -180,35 +180,42 @@ public class MainActivity extends AppCompatActivity {
 
         }
         public void Task_1000Hz(){
+
             mFC.getRotationVector(RotationVector);
             mFC.getAcc(acc);
             mFC.getOrientation(orientation_raw);
             mFC.getGyro(gyro_dps,gyro);
+            Log.e(TAG, "Task_1000Hz");
         }
         public void Task_500Hz(){
+
             double loop_time_500hz = mFC.getTimeInterval(0);
             mFC.pid.pidinner.run(loop_time_500hz);
             MotorRPM = mFC.output();
-
+            Log.e(TAG, "Task_500Hz");
         }
         public void Task_200Hz(){
             double loop_time_200hz = mFC.getTimeInterval(1);
             mFC.pid.pidouter.run(loop_time_200hz);
             mFC.pid.pidinertialnav.Update_Velocities_Positions_Z(loop_time_200hz);
+            Log.e(TAG, "Task_200Hz");
         }
         public void Task_100Hz(){
             double loop_time_100hz = mFC.getTimeInterval(2);
             mFC.pid.pidhgtctrl.Height_Acceleration_Control(loop_time_100hz);
+            Log.e(TAG, "Task_100Hz");
         }
         public void Task_50Hz(){
             double loop_time_50hz = mFC.getTimeInterval(3);
             mFC.pid.pidhgtctrl.Height_Velocity_Control(loop_time_50hz);
+            Log.e(TAG, "Task_50Hz");
         }
         public void Task_20Hz(){
             double loop_time_20hz = mFC.getTimeInterval(4);
             mFC.pid.pidhgtctrl.Height_Position_Control(loop_time_20hz);
-            Log.e(TAG, "is" + MotorRPM[0] +" "+ MotorRPM[1] + " "+MotorRPM[2] + " "+ MotorRPM[3]);
-            Log.e(TAG, "angle" + mFC.orientation[0] +" "+ mFC.orientation[1] + " "+mFC.orientation[2]);
+            Log.e(TAG, "Task_20Hz");
+//            Log.e(TAG, "is" + MotorRPM[0] +" "+ MotorRPM[1] + " "+MotorRPM[2] + " "+ MotorRPM[3]);
+//            Log.e(TAG, "angle" + mFC.orientation[0] +" "+ mFC.orientation[1] + " "+mFC.orientation[2]);
         }
     };
 
@@ -290,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
                     accflag=true;
                     FreFlag=false;
                     FCLoop();
-                    sendacc.setText("Running!");
+                    sendacc.setText("ACC Running!");
                     TxPrepare();
                     UsbSendIMU();
                     // MySchedule();
@@ -425,6 +432,8 @@ public class MainActivity extends AppCompatActivity {
     }
     public void Sensor_Config(){
         //Configuration of Sensors
+
+
         //获取SensorManager对象
         sm = (SensorManager) getSystemService(SENSOR_SERVICE);
         //获取Sensor对象
@@ -534,8 +543,6 @@ public class MainActivity extends AppCompatActivity {
                     orientation_raw[0]= event.values[0];
                     orientation_raw[1]=event.values[1];
                     orientation_raw[2]=event.values[2];
-
-//                    textviewGyro.setText(orientation[0]+"\n"+orientation[1]+"\n"+orientation[2]+"\n");
                     break;
             }
         }
